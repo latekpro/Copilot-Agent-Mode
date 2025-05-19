@@ -1,0 +1,174 @@
+name: Build and Deploy GitHub Contributors Viewer
+
+# Manual trigger
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - stage
+          - prod
+      deploy_infra:
+        description: 'Deploy infrastructure'
+        required: true
+        default: true
+        type: boolean
+      deploy_app:
+        description: 'Deploy application'
+        required: true
+        default: true
+        type: boolean
+
+# Environment variables
+env:
+  AZURE_RESOURCE_GROUP: ghcv-${{ github.event.inputs.environment }}-rg
+  AZURE_LOCATION: eastus
+  NODE_VERSION: '16'
+
+jobs:
+  # Build job for frontend
+  build_frontend:
+    name: Build frontend
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.deploy_app == 'true' }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: cd frontend && npm ci
+
+      - name: Build frontend
+        run: cd frontend && npm run build
+
+      - name: Upload frontend build artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: frontend-build
+          path: frontend/build
+          retention-days: 1
+
+  # Build job for backend
+  build_backend:
+    name: Build backend
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.deploy_app == 'true' }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: cd backend && npm ci
+
+      - name: Upload backend artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: backend-build
+          path: backend
+          retention-days: 1
+
+  # Deploy infrastructure
+  deploy_infrastructure:
+    name: Deploy infrastructure
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.deploy_infra == 'true' }}
+    outputs:
+      backendAppName: ${{ steps.deploy_bicep.outputs.backendAppName }}
+      frontendAppName: ${{ steps.deploy_bicep.outputs.frontendAppName }}
+      storageAccountName: ${{ steps.deploy_bicep.outputs.storageAccountName }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Create resource group if it doesn't exist
+        uses: azure/CLI@v1
+        with:
+          inlineScript: |
+            az group create --name ${{ env.AZURE_RESOURCE_GROUP }} --location ${{ env.AZURE_LOCATION }} --tags environment=${{ github.event.inputs.environment }}
+
+      - name: Deploy Bicep template
+        id: deploy_bicep
+        uses: azure/arm-deploy@v1
+        with:
+          resourceGroupName: ${{ env.AZURE_RESOURCE_GROUP }}
+          template: ./infra/main.bicep
+          parameters: ./infra/main.parameters.json environmentName=${{ github.event.inputs.environment }}
+          deploymentName: ghcv-${{ github.run_number }}-${{ github.event.inputs.environment }}
+          failOnStdErr: false
+
+  # Deploy backend job
+  deploy_backend:
+    name: Deploy backend
+    needs: [build_backend, deploy_infrastructure]
+    if: ${{ github.event.inputs.deploy_app == 'true' }}
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Download backend artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: backend-build
+          path: backend
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy to Azure App Service
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: ${{ needs.deploy_infrastructure.outputs.backendAppName }}
+          package: backend
+
+  # Deploy frontend job
+  deploy_frontend:
+    name: Deploy frontend
+    needs: [build_frontend, deploy_infrastructure, deploy_backend]
+    if: ${{ github.event.inputs.deploy_app == 'true' }}
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Download frontend artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: frontend-build
+          path: frontend-build
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      
+      - name: Deploy to Azure App Service
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: ${{ needs.deploy_infrastructure.outputs.frontendAppName }}
+          package: frontend-build

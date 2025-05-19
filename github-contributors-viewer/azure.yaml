@@ -1,0 +1,28 @@
+name: github-contributors-viewer
+metadata:
+  template: github-contributors-viewer
+services:
+  frontend:
+    project: frontend
+    host: appservice
+    language: js
+    infra:
+      append: []
+      assign: []
+    hooks:
+      prepackage:
+        windows:
+          shell: pwsh
+          run: cd ${{ SERVICE_SOURCE_DIR }} && npm run build
+          continueOnError: false
+        posix:
+          shell: sh
+          run: cd ${{ SERVICE_SOURCE_DIR }} && npm run build
+          continueOnError: false
+  backend:
+    project: backend
+    host: appservice
+    language: js
+    infra:
+      append: []
+      assign: []

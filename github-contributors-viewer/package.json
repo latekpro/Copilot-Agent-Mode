@@ -1,0 +1,22 @@
+{
+  "name": "github-contributors-viewer",
+  "version": "1.0.0",
+  "description": "GitHub Contributors Viewer Application",
+  "main": "index.js",
+  "scripts": {
+    "install-all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "backend": "cd backend && npm run dev",
+    "frontend": "cd frontend && npm start",
+    "dev": "concurrently \"npm run backend\" \"npm run frontend\""
+  },
+  "keywords": [
+    "github",
+    "contributors",
+    "react",
+    "node",
+    "express"
+  ],
+  "dependencies": {
+    "concurrently": "^8.2.0"
+  }
+}
