@@ -167,3 +167,28 @@ h2 {
     font-size: 1.5rem;
   }
 }
+
+.App-footer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 1rem;
+  background: linear-gradient(90deg, red, orange, yellow, green, blue, indigo, violet);
+  animation: flash 1s infinite;
+}
+
+.unicorn-image {
+  width: 30px;
+  height: 30px;
+  margin: 0 10px;
+  animation: flash 1s infinite;
+}
+
+@keyframes flash {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}

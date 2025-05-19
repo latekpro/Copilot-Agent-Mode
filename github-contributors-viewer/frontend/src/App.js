@@ -105,6 +105,11 @@ function App() {
           </div>
         )}
       </header>
+      <footer className="App-footer">
+        <img src="/unicorn.png" alt="Unicorn" className="unicorn-image" />
+        <span>VisionDays 2025 - Denis is the best!</span>
+        <img src="/unicorn.png" alt="Unicorn" className="unicorn-image" />
+      </footer>
     </div>
   );
 }

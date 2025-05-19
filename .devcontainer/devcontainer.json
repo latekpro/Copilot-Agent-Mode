@@ -1,0 +1,6 @@
+{
+  "tasks": {
+    "build": "cd github-contributors-viewer && ls",
+    "test": "cd github-contributors-viewer && npm test"
+  }
+}
